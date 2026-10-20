@@ -1,0 +1,601 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>Sổ Xây Nhà</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Be+Vietnam+Pro:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: công trường — header như khung tên bản vẽ, dải băng cảnh báo; cột trái là danh mục, phải là bảng/tủ hồ sơ */
+:root{
+  --bg:#ECEEEB; --surface:#FAFBF9; --surface-2:#F2F4F1; --ink:#1B2320; --muted:#5D6A65; --line:#D2D8D3;
+  --steel:#24506B; --steel-ink:#FFFFFF; --amber:#E2A11B; --amber-soft:#F7E6BC; --danger:#B3402E; --ok:#2F7A4F;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121715; --surface:#1A211E; --surface-2:#202825; --ink:#E5EBE8; --muted:#93A29C; --line:#2E3934;
+  --steel:#7AB0D0; --steel-ink:#0D1A22; --amber:#F0B53A; --amber-soft:#3A3120; --danger:#E57B66; --ok:#6CC08F; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121715; --surface:#1A211E; --surface-2:#202825; --ink:#E5EBE8; --muted:#93A29C; --line:#2E3934;
+  --steel:#7AB0D0; --steel-ink:#0D1A22; --amber:#F0B53A; --amber-soft:#3A3120; --danger:#E57B66; --ok:#6CC08F; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14.5px;line-height:1.5}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+
+/* ---------- header ---------- */
+.top{background:var(--surface);border-bottom:1px solid var(--line)}
+.top-in{max-width:1240px;margin:0 auto;padding-block:14px 12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between}
+.brand{display:flex;flex-direction:column;min-width:0}
+.brand small{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.proj{font-family:var(--f-display);font-weight:700;font-size:28px;line-height:1.1;letter-spacing:.01em;border:0;background:transparent;padding:0;width:100%;min-width:0;border-bottom:1px dashed transparent}
+.proj:hover,.proj:focus{border-bottom-color:var(--line);outline:none}
+.grand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.grand span{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.grand b{font-family:var(--f-num);font-size:26px;font-weight:500;font-variant-numeric:tabular-nums}
+.tape{height:8px;background:repeating-linear-gradient(-45deg,var(--amber) 0 12px,var(--ink) 12px 24px)}
+.tabs{max-width:1240px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;gap:4px;padding-block:14px 0}
+.tab{border:1px solid var(--line);background:var(--surface);padding:8px 18px;font-family:var(--f-display);font-weight:600;font-size:18px;letter-spacing:.04em;text-transform:uppercase;border-radius:6px}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.status{margin-left:auto;align-self:center;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.status i{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block}
+.status.ok i{background:var(--ok)} .status.busy i{background:var(--amber)} .status.err i{background:var(--danger)}
+
+/* ---------- shell ---------- */
+.wrap{max-width:1240px;margin:0 auto;padding-block:16px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;grid-template-columns:270px minmax(0,1fr);gap:20px;align-items:start}
+.side{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+.side h3{margin:0;padding:10px 14px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);font-weight:600}
+.nav{list-style:none;margin:0;padding:4px 0}
+.nav button{width:100%;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:baseline;text-align:left;background:transparent;border:0;padding:8px 14px;border-left:3px solid transparent}
+.nav button:hover{background:var(--surface-2)}
+.nav button[aria-current="true"]{background:var(--amber-soft);border-left-color:var(--amber)}
+.nav .nm{font-weight:500;font-size:13.5px}
+.nav .am{font-family:var(--f-num);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.nav .sum .nm{font-family:var(--f-display);font-size:17px;font-weight:700;letter-spacing:.04em}
+.nav .sub button{padding-left:30px}
+.nav .sep{height:1px;background:var(--line);margin:4px 0}
+.main{min-width:0;display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.ph{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line)}
+.ph h2{margin:0;font-family:var(--f-display);font-size:30px;font-weight:700;letter-spacing:.02em;line-height:1.05;text-wrap:balance}
+.ph .meta{color:var(--muted);font-size:13px}
+.ph .tot{font-family:var(--f-num);font-size:22px;font-variant-numeric:tabular-nums}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);padding:7px 12px;border-radius:6px;font-size:13px;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--steel);color:var(--steel-ink);border-color:var(--steel)}
+.btn.danger{color:var(--danger)}
+.btn svg{width:15px;height:15px;flex:none}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+
+/* ---------- ledger ---------- */
+.add{display:grid;grid-template-columns:150px minmax(0,1fr) 170px auto;gap:8px;padding:14px 18px;background:var(--surface-2);border-bottom:1px solid var(--line)}
+.add input,.cell-in{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:7px 10px;width:100%;min-width:0}
+.add input.money,.cell-in.money{text-align:right;font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:560px}
+th{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--surface)}
+td{padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.c-date{width:130px;font-family:var(--f-num);font-size:13px;color:var(--muted);white-space:nowrap}
+td.c-amt,th.c-amt{text-align:right;width:170px;white-space:nowrap}
+td.c-amt{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+td.c-act{width:96px;text-align:right;white-space:nowrap}
+tbody tr:hover{background:var(--surface-2)}
+.rowbtn{border:0;background:transparent;padding:4px 6px;border-radius:4px;color:var(--muted)}
+.rowbtn:hover{background:var(--line);color:var(--ink)}
+.rowbtn svg{width:15px;height:15px;display:block}
+tfoot td{font-weight:600;border-bottom:0;background:var(--surface-2)}
+tfoot td.lbl{font-family:var(--f-display);font-size:17px;letter-spacing:.06em}
+.empty{padding:36px 18px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+.confirm{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;color:var(--danger)}
+.confirm button{border:1px solid var(--line);background:var(--surface);border-radius:4px;padding:2px 8px;font-size:12px}
+.confirm button.yes{background:var(--danger);color:#fff;border-color:var(--danger)}
+.idx{color:var(--muted);font-family:var(--f-num);font-size:12px;width:36px}
+
+/* ---------- overview ---------- */
+.dist{display:flex;height:14px;border-radius:3px;overflow:hidden;margin:16px 18px 4px;background:var(--surface-2)}
+.dist div{height:100%}
+.ov td.c-name button{border:0;background:transparent;padding:0;font-weight:500;text-align:left;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.ov td.c-name button:hover{text-decoration-color:var(--ink)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:8px;vertical-align:middle}
+.bar{height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden;min-width:60px}
+.bar i{display:block;height:100%;background:var(--steel)}
+td.c-pct{width:150px}
+.pct{display:grid;grid-template-columns:1fr 46px;gap:8px;align-items:center;font-family:var(--f-num);font-size:12px;color:var(--muted)}
+.recent{list-style:none;margin:0;padding:0}
+.recent li{display:grid;grid-template-columns:90px minmax(0,1fr) auto;gap:12px;padding:9px 18px;border-bottom:1px solid var(--line);align-items:baseline}
+.recent li:last-child{border-bottom:0}
+.recent .d{font-family:var(--f-num);font-size:12px;color:var(--muted)}
+.recent .c{font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;display:block}
+.recent .a{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.sec-h{padding:12px 18px;border-bottom:1px solid var(--line);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+/* ---------- drawings ---------- */
+.drop{margin:16px 18px;border:2px dashed var(--line);border-radius:8px;padding:22px;text-align:center;color:var(--muted);transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--amber);background:var(--amber-soft)}
+.drop b{color:var(--ink)}
+.drop small{display:block;margin-top:4px;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;padding:0 18px 18px}
+.card{border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column;text-align:left;padding:0}
+.card:hover{border-color:var(--muted)}
+.thumb{aspect-ratio:4/3;max-width:100%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb .ext{font-family:var(--f-display);font-weight:700;font-size:26px;letter-spacing:.06em;color:var(--steel);border:2px solid var(--steel);padding:2px 10px;border-radius:4px}
+.card .cap{padding:8px 10px;border-top:1px solid var(--line)}
+.card .fn{font-size:13px;font-weight:500;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card .fm{font-size:11.5px;color:var(--muted);font-family:var(--f-num)}
+.folders{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;padding:18px}
+.folder{border:1px solid var(--line);background:var(--surface-2);border-radius:6px;padding:16px;text-align:left;display:flex;flex-direction:column;gap:6px}
+.folder:hover{border-color:var(--amber)}
+.folder svg{width:28px;height:28px;color:var(--amber)}
+.folder b{font-weight:600}
+.folder span{font-size:12px;color:var(--muted)}
+.uploads{list-style:none;margin:0 18px 12px;padding:0;display:flex;flex-direction:column;gap:4px;font-size:12.5px}
+.uploads li{display:flex;justify-content:space-between;gap:10px;padding:6px 10px;background:var(--surface-2);border-radius:4px}
+.uploads .er{color:var(--danger)}
+
+/* ---------- overlay ---------- */
+.ov-bg{position:fixed;inset:0;background:rgba(10,14,12,.78);z-index:50;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+.ov-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line)}
+.ov-bar .t{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-body{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:16px;position:relative}
+.ov-body img,.ov-body video{max-width:100%;max-height:100%;object-fit:contain;background:#fff}
+.ov-body iframe{width:100%;height:100%;border:0;background:#fff;border-radius:4px}
+.navbtn{position:absolute;top:50%;transform:translateY(-50%);border:0;background:var(--surface);color:var(--ink);width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;opacity:.9}
+.navbtn.l{left:12px} .navbtn.r{right:12px}
+.dialog{background:var(--surface);border-radius:8px;max-width:420px;width:calc(100% - 32px);margin:auto;padding:20px;display:flex;flex-direction:column;gap:14px}
+.dialog p{margin:0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:6px;font-size:13px;z-index:60;max-width:calc(100% - 32px)}
+.banner{background:var(--amber-soft);border:1px solid var(--amber);border-radius:6px;padding:10px 14px;font-size:13px}
+
+@media (max-width:820px){
+  .wrap{grid-template-columns:1fr}
+  .side{position:static}
+  .nav{display:flex;overflow-x:auto;padding:6px;gap:6px}
+  .nav li{flex:none}
+  .nav .sep{display:none}
+  .nav button{border-left:0;border:1px solid var(--line);border-radius:6px;display:flex;flex-direction:column;gap:0;padding:6px 10px}
+  .nav .sub button{padding-left:10px}
+  .nav button[aria-current="true"]{border-color:var(--amber)}
+  .side h3{display:none}
+  .add{grid-template-columns:1fr 1fr}
+  .add .f-desc{grid-column:1/-1;order:-1}
+  .add .btn{grid-column:1/-1;justify-content:center}
+  .proj{font-size:24px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <small>Công trình</small>
+      <input class="proj" id="projName" value="Nhà của tôi" aria-label="Tên công trình" maxlength="80">
+    </div>
+    <div class="grand"><span>Tổng đã chi</span><b id="grandTotal">0 ₫</b></div>
+  </div>
+  <div class="tape" aria-hidden="true"></div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab" role="tab" id="tab-thuchi" aria-selected="true">Thu chi</button>
+  <button class="tab" role="tab" id="tab-banve" aria-selected="false">Bản vẽ</button>
+  <div class="status" id="status"><i></i><span>Đang kết nối…</span></div>
+</nav>
+
+<div class="wrap">
+  <aside class="side"><h3 id="sideTitle">Hạng mục chi</h3><ul class="nav" id="nav"></ul></aside>
+  <main class="main" id="main"></main>
+</div>
+
+<div id="overlay"></div>
+<div id="toastHost"></div>
+<input type="file" id="xlsxIn" accept=".xlsx,.xls,.csv" hidden>
+<input type="file" id="fileIn" multiple accept="image/*,application/pdf,video/mp4,video/webm,.txt,.csv" hidden>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const CATS=[
+  ["cong-thau","CÔNG THẦU"],["gach-op-lat","GẠCH ỐP LÁT"],["dien-nuoc","ĐIỆN NƯỚC"],["lat-vat","LẶT VẶT"],
+  ["vat-lieu","VẬT LIỆU XÂY DỰNG"],["son-nuoc","SƠN NƯỚC"],["sat-thep","SẮT THÉP"],["thang-may","THANG MÁY"],
+  ["cua","CỬA"],["thiet-bi-ve-sinh","THIẾT BỊ VỆ SINH"],["hang-muc-nho","CÁC HẠNG MỤC NHỎ"],["giay-to","GIẤY TỜ"]
+].map(([id,name])=>({id,name}));
+const PALETTE=["#24506B","#E2A11B","#5B8C6E","#B3402E","#7A6BA8","#3E8FB0","#8C6A3F","#C07A9B","#4F5D58","#9DB34A","#D9734A","#2E7D7D"];
+const FOLDERS=[
+  {id:"bv",name:"BẢN VẼ",children:["bv-thi-cong","bv-bo-tri","bv-dien-nuoc"]},
+  {id:"bv-thi-cong",name:"Bản vẽ chi tiết thi công",parent:"bv"},
+  {id:"bv-bo-tri",name:"Bản vẽ bố trí vật dụng",parent:"bv"},
+  {id:"bv-dien-nuoc",name:"Bản vẽ điện nước",parent:"bv"},
+  {id:"phoi-canh",name:"PHỐI CẢNH"},
+  {id:"noi-that",name:"NỘI THẤT"}
+];
+const F=Object.fromEntries(FOLDERS.map(f=>[f.id,f]));
+const ICON={
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg>',
+  del:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
+  dl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+  up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  folder:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 6h6l2 2h10v11H3z"/></svg>',
+  ext:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/></svg>',
+  l:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  r:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>'
+};
+
+const S={cats:Object.fromEntries(CATS.map(c=>[c.id,[]])),files:[],view:"thuchi",cat:"__all",folder:"bv",
+  editing:null,confirmDel:null,uploads:[],project:"Nhà của tôi"};
+let db=null,assets=null,downloads=null,mode="connecting";
+const saving={},dirty={};
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const nf=new Intl.NumberFormat("vi-VN");
+const money=n=>nf.format(Math.round(n||0))+" ₫";
+const short=n=>n>=1e9?(n/1e9).toLocaleString("vi-VN",{maximumFractionDigits:2})+" tỷ":n>=1e6?(n/1e6).toLocaleString("vi-VN",{maximumFractionDigits:1})+" tr":nf.format(n||0);
+const parseMoney=s=>{const d=String(s||"").replace(/[^\d]/g,"");return d?parseInt(d,10):0};
+const fmtDate=iso=>{if(!iso)return"—";const[y,m,d]=iso.split("-");return`${d}/${m}/${y}`};
+const today=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const catTotal=id=>S.cats[id].reduce((a,r)=>a+(r.amount||0),0);
+const grand=()=>CATS.reduce((a,c)=>a+catTotal(c.id),0);
+const sorted=id=>[...S.cats[id]].sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.created||0)-(b.created||0));
+const fsize=b=>b>=1048576?(b/1048576).toFixed(1)+" MB":Math.max(1,Math.round(b/1024))+" KB";
+function toast(msg){const h=$("#toastHost");h.innerHTML=`<div class="toast" role="status">${esc(msg)}</div>`;clearTimeout(toast.t);toast.t=setTimeout(()=>h.innerHTML="",2600)}
+function setStatus(kind,text){const el=$("#status");el.className="status "+kind;el.querySelector("span").textContent=text}
+function moneyInput(el){el.addEventListener("input",()=>{const n=parseMoney(el.value);el.value=n?nf.format(n):""})}
+
+/* ---------- persistence ---------- */
+const LS="soxaynha-local";
+function lsSave(){try{localStorage.setItem(LS,JSON.stringify({cats:S.cats,project:S.project}))}catch(e){}}
+function lsLoad(){try{const d=JSON.parse(localStorage.getItem(LS)||"null");if(d){Object.assign(S.cats,d.cats||{});S.project=d.project||S.project}}catch(e){}}
+
+async function saveCat(id){
+  if(mode!=="db"){lsSave();return}
+  if(saving[id]){dirty[id]=true;return}
+  saving[id]=true;setStatus("busy","Đang lưu…");
+  try{
+    do{dirty[id]=false;await db.doc("expenses/"+id).set({rows:S.cats[id]})}while(dirty[id]);
+    setStatus("ok","Đã lưu");
+  }catch(e){setStatus("err","Lưu thất bại");toast(e.code==="invalid_argument"?"Bạn chỉ có quyền xem, không sửa được dữ liệu.":"Không lưu được. Kiểm tra kết nối rồi thử lại.")}
+  saving[id]=false;
+}
+let projT;
+function saveProject(){
+  clearTimeout(projT);projT=setTimeout(async()=>{
+    if(mode!=="db"){lsSave();return}
+    try{await db.doc("meta/project").set({name:S.project});setStatus("ok","Đã lưu")}catch(e){setStatus("err","Lưu thất bại")}
+  },600);
+}
+
+/* ---------- side nav ---------- */
+function renderNav(){
+  const nav=$("#nav");
+  if(S.view==="thuchi"){
+    $("#sideTitle").textContent="Hạng mục chi";
+    nav.innerHTML=`<li class="sum"><button data-cat="__all" aria-current="${S.cat==="__all"}"><span class="nm">TỔNG HỢP</span><span class="am">${short(grand())}</span></button></li><li class="sep"></li>`+
+      CATS.map(c=>`<li><button data-cat="${c.id}" aria-current="${S.cat===c.id}"><span class="nm">${esc(c.name)}</span><span class="am">${short(catTotal(c.id))}</span></button></li>`).join("");
+  }else{
+    $("#sideTitle").textContent="Thư mục";
+    const cnt=id=>S.files.filter(f=>f.folder===id).length;
+    const item=(f,sub)=>`<li class="${sub?"sub":""}"><button data-folder="${f.id}" aria-current="${S.folder===f.id}"><span class="nm">${esc(f.name)}</span><span class="am">${f.children?f.children.reduce((a,c)=>a+cnt(c),0):cnt(f.id)}</span></button></li>`;
+    nav.innerHTML=item(F.bv)+F.bv.children.map(c=>item(F[c],true)).join("")+'<li class="sep"></li>'+item(F["phoi-canh"])+item(F["noi-that"]);
+  }
+}
+$("#nav").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  if(b.dataset.cat){S.cat=b.dataset.cat;S.editing=null;S.confirmDel=null}
+  if(b.dataset.folder){S.folder=b.dataset.folder;S.uploads=[]}
+  render();
+});
+
+/* ---------- views ---------- */
+function render(){
+  $("#grandTotal").textContent=money(grand());
+  $("#tab-thuchi").setAttribute("aria-selected",S.view==="thuchi");
+  $("#tab-banve").setAttribute("aria-selected",S.view==="banve");
+  renderNav();
+  if(S.view==="thuchi")S.cat==="__all"?renderOverview():renderLedger();
+  else renderFolder();
+}
+function banner(){
+  if(mode==="local")return`<div class="banner">Đang chạy ngoài claude.ai nên dữ liệu chỉ lưu tạm trên trình duyệt này. Mở trang qua đường dẫn claude.ai để lưu lâu dài và tải file bản vẽ.</div>`;
+  return"";
+}
+
+function renderOverview(){
+  const g=grand();
+  const rows=CATS.map((c,i)=>({c,i,t:catTotal(c.id),n:S.cats[c.id].length}));
+  const recent=CATS.flatMap(c=>S.cats[c.id].map(r=>({...r,cat:c.name}))).sort((a,b)=>(b.date||"").localeCompare(a.date||"")||(b.created||0)-(a.created||0)).slice(0,8);
+  $("#main").innerHTML=banner()+`
+  <section class="panel">
+    <div class="ph"><div><h2>Tổng hợp chi phí</h2><div class="meta">${rows.reduce((a,r)=>a+r.n,0)} khoản chi trong 12 hạng mục</div></div>
+      <div class="actions"><button class="btn pri" id="expAll">${ICON.dl}Xuất Excel tổng hợp</button></div></div>
+    ${g?`<div class="dist" aria-hidden="true">${rows.filter(r=>r.t).map(r=>`<div style="width:${r.t/g*100}%;background:${PALETTE[r.i]}" title="${esc(r.c.name)}"></div>`).join("")}</div>`:""}
+    <div class="tbl-wrap"><table class="ov">
+      <thead><tr><th>Hạng mục</th><th class="c-amt">Số khoản</th><th class="c-amt">Số tiền</th><th>Tỷ lệ</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr><td class="c-name"><span class="sw" style="background:${PALETTE[r.i]}"></span><button data-go="${r.c.id}">${esc(r.c.name)}</button></td>
+        <td class="c-amt">${r.n}</td><td class="c-amt">${money(r.t)}</td>
+        <td class="c-pct"><div class="pct"><div class="bar"><i style="width:${g?r.t/g*100:0}%;background:${PALETTE[r.i]}"></i></div><span>${g?(r.t/g*100).toFixed(1):"0.0"}%</span></div></td></tr>`).join("")}</tbody>
+      <tfoot><tr><td class="lbl">TỔNG CỘNG</td><td class="c-amt num">${rows.reduce((a,r)=>a+r.n,0)}</td><td class="c-amt num">${money(g)}</td><td></td></tr></tfoot>
+    </table></div>
+  </section>
+  <section class="panel"><div class="sec-h">Khoản chi gần nhất</div>
+    ${recent.length?`<ul class="recent">${recent.map(r=>`<li><span class="d">${fmtDate(r.date)}</span><span><span class="c">${esc(r.cat)}</span>${esc(r.desc)}</span><span class="a">${money(r.amount)}</span></li>`).join("")}</ul>`
+    :`<div class="empty"><b>Chưa có khoản chi nào</b>Chọn một hạng mục bên trái (ví dụ CÔNG THẦU) rồi nhập ngày, việc chi và số tiền.</div>`}
+  </section>`;
+  $("#expAll").onclick=exportAll;
+  $("#main").querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{S.cat=b.dataset.go;render()});
+}
+
+function renderLedger(){
+  const c=CATS.find(x=>x.id===S.cat);
+  $("#main").innerHTML=banner()+`
+  <section class="panel">
+    <div class="ph"><div><h2>${esc(c.name)}</h2><div class="meta" id="ldMeta"></div></div>
+      <div class="actions">
+        <button class="btn" id="impBtn">${ICON.up}Nhập từ Excel</button>
+        <button class="btn pri" id="expBtn">${ICON.dl}Xuất Excel</button>
+      </div></div>
+    <form class="add" id="addForm" autocomplete="off">
+      <input type="date" id="fDate" value="${today()}" aria-label="Ngày">
+      <input class="f-desc" id="fDesc" placeholder="Việc chi, ví dụ: Tạm ứng đợt 1 phần thô" aria-label="Việc chi" maxlength="200">
+      <input class="money" id="fAmt" inputmode="numeric" placeholder="Số tiền" aria-label="Số tiền">
+      <button class="btn pri" type="submit">${ICON.plus}Thêm</button>
+    </form>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th class="idx">#</th><th>Ngày</th><th>Việc chi</th><th class="c-amt">Số tiền</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+      <tfoot><tr><td></td><td class="lbl" colspan="2">TỔNG ${esc(c.name)}</td><td class="c-amt num" id="ldTot"></td><td></td></tr></tfoot>
+    </table></div>
+  </section>`;
+  moneyInput($("#fAmt"));
+  $("#addForm").onsubmit=e=>{
+    e.preventDefault();
+    const desc=$("#fDesc").value.trim(),amount=parseMoney($("#fAmt").value);
+    if(!desc){$("#fDesc").focus();toast("Nhập nội dung việc chi.");return}
+    if(!amount){$("#fAmt").focus();toast("Nhập số tiền.");return}
+    S.cats[S.cat].push({id:uid(),date:$("#fDate").value,desc,amount,created:Date.now()});
+    $("#fDesc").value="";$("#fAmt").value="";$("#fDesc").focus();
+    renderRows();renderNav();$("#grandTotal").textContent=money(grand());saveCat(S.cat);
+  };
+  $("#expBtn").onclick=()=>exportCat(S.cat);
+  $("#impBtn").onclick=()=>$("#xlsxIn").click();
+  renderRows();
+}
+function renderRows(){
+  const tb=$("#rows");if(!tb)return;
+  const list=sorted(S.cat);
+  $("#ldMeta").textContent=`${list.length} khoản`;
+  $("#ldTot").textContent=money(catTotal(S.cat));
+  if(!list.length){tb.innerHTML=`<tr><td colspan="5"><div class="empty"><b>Chưa có khoản chi</b>Nhập ở dòng phía trên, hoặc bấm “Nhập từ Excel” nếu bạn đã có file với các cột Ngày, Việc chi, Số tiền.</div></td></tr>`;return}
+  tb.innerHTML=list.map((r,i)=>{
+    if(S.editing===r.id)return`<tr data-id="${r.id}"><td class="idx">${i+1}</td>
+      <td class="c-date"><input class="cell-in" type="date" id="eDate" value="${esc(r.date)}" aria-label="Ngày"></td>
+      <td><input class="cell-in" id="eDesc" value="${esc(r.desc)}" aria-label="Việc chi" maxlength="200"></td>
+      <td class="c-amt"><input class="cell-in money" id="eAmt" inputmode="numeric" value="${nf.format(r.amount)}" aria-label="Số tiền"></td>
+      <td class="c-act"><button class="rowbtn" data-act="save" title="Lưu">${ICON.check}</button><button class="rowbtn" data-act="cancel" title="Hủy">${ICON.x}</button></td></tr>`;
+    return`<tr data-id="${r.id}"><td class="idx">${i+1}</td><td class="c-date">${fmtDate(r.date)}</td><td>${esc(r.desc)}</td><td class="c-amt">${money(r.amount)}</td>
+      <td class="c-act">${S.confirmDel===r.id?`<span class="confirm">Xóa?<button class="yes" data-act="yes">Xóa</button><button data-act="no">Không</button></span>`
+      :`<button class="rowbtn" data-act="edit" title="Sửa">${ICON.edit}</button><button class="rowbtn" data-act="del" title="Xóa">${ICON.del}</button>`}</td></tr>`;
+  }).join("");
+  if(S.editing){const a=$("#eAmt");if(a){moneyInput(a);$("#eDesc").focus();
+    tb.querySelectorAll(".cell-in").forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter")commitEdit();if(e.key==="Escape"){S.editing=null;renderRows()}}))}}
+}
+function commitEdit(){
+  const r=S.cats[S.cat].find(x=>x.id===S.editing);if(!r)return;
+  const desc=$("#eDesc").value.trim(),amount=parseMoney($("#eAmt").value);
+  if(!desc||!amount){toast("Cần có nội dung và số tiền.");return}
+  r.date=$("#eDate").value;r.desc=desc;r.amount=amount;S.editing=null;
+  renderRows();renderNav();$("#grandTotal").textContent=money(grand());saveCat(S.cat);
+}
+$("#main").addEventListener("click",e=>{
+  const b=e.target.closest("[data-act]");if(!b)return;
+  const id=b.closest("tr")?.dataset.id;const act=b.dataset.act;
+  if(act==="edit"){S.editing=id;S.confirmDel=null}
+  else if(act==="cancel"){S.editing=null}
+  else if(act==="save"){commitEdit();return}
+  else if(act==="del"){S.confirmDel=id;S.editing=null}
+  else if(act==="no"){S.confirmDel=null}
+  else if(act==="yes"){S.cats[S.cat]=S.cats[S.cat].filter(r=>r.id!==id);S.confirmDel=null;saveCat(S.cat);renderNav();$("#grandTotal").textContent=money(grand());toast("Đã xóa khoản chi.")}
+  else return;
+  renderRows();
+});
+
+/* ---------- Excel ---------- */
+const serial=iso=>{const[y,m,d]=iso.split("-").map(Number);return(Date.UTC(y,m-1,d)-Date.UTC(1899,11,30))/864e5};
+function catSheet(id){
+  const list=sorted(id);
+  const aoa=[["Ngày","Việc chi","Số tiền (₫)"],...list.map(r=>[null,r.desc,r.amount]),[null,"TỔNG CỘNG",null]];
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  list.forEach((r,i)=>{if(r.date)ws["A"+(i+2)]={t:"n",v:serial(r.date),z:"dd/mm/yyyy"};ws["C"+(i+2)].z="#,##0"});
+  const tr=list.length+2;
+  ws["C"+tr]={t:"n",v:catTotal(id),f:list.length?`SUM(C2:C${tr-1})`:"0",z:"#,##0"};
+  ws["!cols"]=[{wch:12},{wch:50},{wch:18}];
+  return{ws,tr};
+}
+async function offer(wb,filename){
+  const data=XLSX.write(wb,{bookType:"xlsx",type:"array"});
+  const blob=new Blob([data],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  if(!downloads){toast("Trang này chưa được phép tải file. Hãy mở qua claude.ai.");return}
+  try{await downloads.save({filename,data:blob});toast("Đã tải "+filename)}
+  catch(e){if(e.code!=="declined")toast("Không tải được file ("+(e.code||"lỗi")+").")}
+}
+function exportCat(id){
+  const c=CATS.find(x=>x.id===id);const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,catSheet(id).ws,c.name.slice(0,31));
+  offer(wb,`${c.name}.xlsx`);
+}
+function exportAll(){
+  const wb=XLSX.utils.book_new();
+  const sum=XLSX.utils.aoa_to_sheet([["Hạng mục","Số khoản","Số tiền (₫)"]]);
+  XLSX.utils.book_append_sheet(wb,sum,"TỔNG HỢP");
+  CATS.forEach((c,i)=>{
+    const{ws,tr}=catSheet(c.id);const nm=c.name.slice(0,31);
+    XLSX.utils.book_append_sheet(wb,ws,nm);
+    const row=i+2;
+    sum["A"+row]={t:"s",v:c.name};
+    sum["B"+row]={t:"n",v:S.cats[c.id].length,f:`COUNTA('${nm}'!B2:B${Math.max(tr-1,2)})`};
+    if(tr===2)sum["B"+row]={t:"n",v:0};
+    sum["C"+row]={t:"n",v:catTotal(c.id),f:`'${nm}'!C${tr}`,z:"#,##0"};
+  });
+  const last=CATS.length+2;
+  sum["A"+last]={t:"s",v:"TỔNG CỘNG"};
+  sum["B"+last]={t:"n",v:CATS.reduce((a,c)=>a+S.cats[c.id].length,0),f:`SUM(B2:B${last-1})`};
+  sum["C"+last]={t:"n",v:grand(),f:`SUM(C2:C${last-1})`,z:"#,##0"};
+  sum["!ref"]="A1:C"+last;sum["!cols"]=[{wch:24},{wch:10},{wch:20}];
+  offer(wb,`Tổng hợp thu chi - ${S.project||"Công trình"}.xlsx`);
+}
+function cellDate(v){
+  if(v==null||v==="")return"";
+  if(typeof v==="number"){const p=XLSX.SSF.parse_date_code(v);return p?`${p.y}-${String(p.m).padStart(2,"0")}-${String(p.d).padStart(2,"0")}`:""}
+  const m=String(v).trim().match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+  if(m){let y=+m[3];if(y<100)y+=2000;return`${y}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`}
+  const m2=String(v).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);return m2?m2[0]:"";
+}
+$("#xlsxIn").addEventListener("change",async e=>{
+  const file=e.target.files[0];e.target.value="";if(!file)return;
+  try{
+    const wb=XLSX.read(await file.arrayBuffer(),{type:"array"});
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:""});
+    let n=0;
+    rows.forEach(r=>{
+      const desc=String(r[1]??"").trim();
+      const amount=typeof r[2]==="number"?Math.round(r[2]):parseMoney(r[2]);
+      if(!desc||!amount||/^t[ổo]ng/i.test(desc))return;
+      S.cats[S.cat].push({id:uid(),date:cellDate(r[0]),desc,amount,created:Date.now()+n});n++;
+    });
+    if(!n){toast("Không tìm thấy dòng nào. File cần 3 cột: Ngày, Việc chi, Số tiền.");return}
+    renderRows();renderNav();$("#grandTotal").textContent=money(grand());saveCat(S.cat);
+    toast(`Đã nhập ${n} khoản chi.`);
+  }catch(err){toast("Không đọc được file Excel này.")}
+});
+
+/* ---------- drawings ---------- */
+const TYPES={pdf:"application/pdf",png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp",gif:"image/gif",svg:"image/svg+xml",mp4:"video/mp4",webm:"video/webm",txt:"text/plain",csv:"text/csv"};
+const extOf=n=>(n.split(".").pop()||"").toLowerCase();
+function folderFiles(id){return S.files.filter(f=>f.folder===id).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))}
+function renderFolder(){
+  const f=F[S.folder];
+  if(f.children){
+    $("#main").innerHTML=banner()+`<section class="panel"><div class="ph"><div><h2>${esc(f.name)}</h2><div class="meta">Chọn một thư mục để xem và tải lên bản vẽ</div></div></div>
+      <div class="folders">${f.children.map(id=>`<button class="folder" data-open="${id}">${ICON.folder}<b>${esc(F[id].name)}</b><span>${folderFiles(id).length} tệp</span></button>`).join("")}</div></section>`;
+    $("#main").querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{S.folder=b.dataset.open;render()});
+    return;
+  }
+  const list=folderFiles(f.id);
+  const canUp=!!assets;
+  $("#main").innerHTML=banner()+`<section class="panel">
+    <div class="ph"><div><h2>${esc(f.name)}</h2><div class="meta">${f.parent?esc(F[f.parent].name)+" · ":""}${list.length} tệp</div></div>
+      <div class="actions">${canUp?`<button class="btn pri" id="pick">${ICON.up}Tải lên</button>`:""}</div></div>
+    ${canUp?`<div class="drop" id="drop"><b>Kéo thả ảnh hoặc file PDF vào đây</b><small>JPG, PNG, WEBP, PDF, MP4 · tối đa 20 MB mỗi tệp. File CAD (DWG) hay Word hãy xuất sang PDF trước.</small></div>`
+      :`<div class="drop">${mode==="db"?"Chỉ người có quyền chỉnh sửa mới tải tệp lên được.":"Tải tệp lên cần mở trang qua claude.ai."}</div>`}
+    <ul class="uploads" id="upl"></ul>
+    ${list.length?`<div class="grid">${list.map(x=>`<button class="card" data-file="${x.id}">
+      <div class="thumb">${x.contentType.startsWith("image/")?`<img src="/_blob/${esc(x.assetId)}" alt="" loading="lazy">`:`<span class="ext">${esc(extOf(x.name).toUpperCase()||"FILE")}</span>`}</div>
+      <div class="cap"><div class="fn">${esc(x.name)}</div><div class="fm">${fsize(x.size)} · ${new Date(x.createdAt).toLocaleDateString("vi-VN")}</div></div></button>`).join("")}</div>`
+      :`<div class="empty"><b>Thư mục trống</b>Tải bản vẽ, ảnh chụp hoặc file PDF lên để lưu cùng công trình.</div>`}
+  </section>`;
+  renderUploads();
+  if(canUp){
+    $("#pick").onclick=()=>$("#fileIn").click();
+    const d=$("#drop");
+    d.addEventListener("click",()=>$("#fileIn").click());
+    ["dragenter","dragover"].forEach(t=>d.addEventListener(t,e=>{e.preventDefault();d.classList.add("over")}));
+    ["dragleave","drop"].forEach(t=>d.addEventListener(t,e=>{e.preventDefault();d.classList.remove("over")}));
+    d.addEventListener("drop",e=>uploadFiles([...e.dataTransfer.files]));
+  }
+  $("#main").querySelectorAll("[data-file]").forEach(b=>b.onclick=()=>openViewer(b.dataset.file));
+}
+function renderUploads(){
+  const u=$("#upl");if(!u)return;
+  u.innerHTML=S.uploads.map(x=>`<li><span>${esc(x.name)}</span><span class="${x.err?"er":""}">${esc(x.state)}</span></li>`).join("");
+}
+$("#fileIn").addEventListener("change",e=>{const fs=[...e.target.files];e.target.value="";uploadFiles(fs)});
+async function uploadFiles(files){
+  const folder=S.folder;
+  for(const file of files){
+    const type=TYPES[extOf(file.name)]||(Object.values(TYPES).includes(file.type)?file.type:"");
+    const item={name:file.name,state:"Đang tải…"};S.uploads.unshift(item);renderUploads();
+    if(!type){item.state="Định dạng chưa hỗ trợ — hãy xuất sang PDF";item.err=1;renderUploads();continue}
+    if(file.size>20*1048576){item.state="Quá 20 MB";item.err=1;renderUploads();continue}
+    try{
+      const r=await assets.upload(file,{type});
+      await db.collection("files").add({folder,name:file.name,assetId:r.id,contentType:r.contentType,size:r.sizeBytes,createdAt:Date.now()});
+      item.state="Xong";
+    }catch(e){item.err=1;item.state={too_large:"Tệp quá lớn",unsupported_type:"Định dạng không hỗ trợ",quota_or_state:"Hết dung lượng lưu trữ",rate_limited:"Tải quá nhanh, thử lại sau"}[e.code]||"Lỗi tải lên"}
+    renderUploads();
+  }
+}
+
+/* ---------- viewer ---------- */
+let viewing=null;
+function openViewer(id){viewing=id;drawViewer()}
+function closeViewer(){viewing=null;$("#overlay").innerHTML="";document.removeEventListener("keydown",vKey)}
+function vKey(e){if(e.key==="Escape")closeViewer();if(e.key==="ArrowLeft")step(-1);if(e.key==="ArrowRight")step(1)}
+function step(d){const l=folderFiles(S.folder);const i=l.findIndex(x=>x.id===viewing);if(i<0||l.length<2)return;viewing=l[(i+d+l.length)%l.length].id;drawViewer()}
+function drawViewer(confirmDel){
+  const x=S.files.find(f=>f.id===viewing);if(!x){closeViewer();return}
+  const src="/_blob/"+encodeURIComponent(x.assetId);const t=x.contentType;
+  const body=t.startsWith("image/")?`<img src="${src}" alt="${esc(x.name)}">`:t.startsWith("video/")?`<video src="${src}" controls></video>`:`<iframe src="${src}" title="${esc(x.name)}"></iframe>`;
+  const multi=folderFiles(S.folder).length>1;
+  $("#overlay").innerHTML=`<div class="ov-bg" role="dialog" aria-modal="true" aria-label="${esc(x.name)}">
+    <div class="ov-bar"><span class="t">${esc(x.name)}</span>
+      <a class="btn" href="${src}" target="_blank" rel="noopener">${ICON.ext}Mở tab mới</a>
+      <button class="btn" id="vDl">${ICON.dl}Tải về</button>
+      ${assets?(confirmDel?`<span class="confirm">Xóa vĩnh viễn?<button class="yes" id="vYes">Xóa</button><button id="vNo">Không</button></span>`:`<button class="btn danger" id="vDel">${ICON.del}Xóa</button>`):""}
+      <button class="btn" id="vClose">${ICON.x}Đóng</button></div>
+    <div class="ov-body">${body}${multi?`<button class="navbtn l" id="vPrev" aria-label="Tệp trước">${ICON.l}</button><button class="navbtn r" id="vNext" aria-label="Tệp sau">${ICON.r}</button>`:""}</div></div>`;
+  $("#vClose").onclick=closeViewer;
+  $("#vDl").onclick=()=>dlFile(x);
+  if(multi){$("#vPrev").onclick=()=>step(-1);$("#vNext").onclick=()=>step(1)}
+  if($("#vDel"))$("#vDel").onclick=()=>drawViewer(true);
+  if($("#vNo"))$("#vNo").onclick=()=>drawViewer(false);
+  if($("#vYes"))$("#vYes").onclick=async()=>{
+    try{await db.doc("files/"+x.id).delete();await assets.delete(x.assetId).catch(()=>{});closeViewer();toast("Đã xóa "+x.name)}
+    catch(e){toast("Không xóa được tệp.")}
+  };
+  document.removeEventListener("keydown",vKey);document.addEventListener("keydown",vKey);
+}
+async function dlFile(x){
+  if(!downloads){toast("Không tải được ở chế độ này — dùng “Mở tab mới”.");return}
+  try{const b=await (await fetch("/_blob/"+encodeURIComponent(x.assetId))).blob();await downloads.save({filename:x.name,data:b});toast("Đã tải "+x.name)}
+  catch(e){if(e.code!=="declined")toast(e.code==="rejected_extension"?"Loại tệp này không tải trực tiếp được — dùng “Mở tab mới”.":"Không tải được tệp.")}
+}
+
+/* ---------- tabs & project ---------- */
+$("#tab-thuchi").onclick=()=>{S.view="thuchi";render()};
+$("#tab-banve").onclick=()=>{S.view="banve";render()};
+$("#projName").addEventListener("input",e=>{S.project=e.target.value;saveProject()});
+
+/* ---------- boot ---------- */
+render();
+(async()=>{
+  const c=window.claude;
+  if(!c||!c.use){mode="local";lsLoad();$("#projName").value=S.project;setStatus("","Lưu trên trình duyệt");render();return}
+  db=await c.use("db");
+  if(!db){mode="local";lsLoad();$("#projName").value=S.project;setStatus("","Lưu trên trình duyệt");render();return}
+  mode="db";setStatus("ok","Đã đồng bộ");
+  const [a,d]=await Promise.all([c.use("assets"),c.use("downloads")]);assets=a;downloads=d;
+  db.collection("expenses").onSnapshot(snap=>{
+    snap.docs.forEach(doc=>{if(S.cats[doc.id]&&!saving[doc.id])S.cats[doc.id]=(doc.data().rows||[]).map(r=>({...r}))});
+    if(S.editing&&S.view==="thuchi"){renderNav();$("#grandTotal").textContent=money(grand());return}
+    render();
+  },()=>setStatus("err","Mất kết nối"));
+  db.collection("files").onSnapshot(snap=>{
+    S.files=snap.docs.map(d=>({id:d.id,...d.data()}));
+    if(S.view==="banve")render();else renderNav();
+    if(viewing&&!S.files.find(f=>f.id===viewing))closeViewer();
+  },()=>setStatus("err","Mất kết nối"));
+  db.doc("meta/project").onSnapshot(s=>{if(s.exists&&document.activeElement!==$("#projName")){S.project=s.data().name||S.project;$("#projName").value=S.project}});
+})();
+</script>
+
+</body></html>
