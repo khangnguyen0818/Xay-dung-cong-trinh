@@ -160,6 +160,11 @@ td.c-pct{width:150px}
 .navbtn.l{left:12px} .navbtn.r{right:12px}
 .dialog{background:var(--surface);border-radius:8px;max-width:420px;width:calc(100% - 32px);margin:auto;padding:20px;display:flex;flex-direction:column;gap:14px}
 .dialog p{margin:0}
+.dialog h3{margin:0;font-family:var(--f-display);font-size:24px;letter-spacing:.02em}
+.dialog .hint{font-size:13px;color:var(--muted)}
+.dialog .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.dialog .err{color:var(--danger);font-size:13px}
+.sync{align-self:center;margin-left:8px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:6px;font-size:13px;z-index:60;max-width:calc(100% - 32px)}
 .banner{background:var(--amber-soft);border:1px solid var(--amber);border-radius:6px;padding:10px 14px;font-size:13px}
 
@@ -198,6 +203,7 @@ td.c-pct{width:150px}
   <button class="tab" role="tab" id="tab-thuchi" aria-selected="true">Thu chi</button>
   <button class="tab" role="tab" id="tab-banve" aria-selected="false">Bản vẽ</button>
   <div class="status" id="status"><i></i><span>Đang kết nối…</span></div>
+  <button class="btn sync" id="syncBtn" hidden>Kết nối Google Sheets</button>
 </nav>
 
 <div class="wrap">
@@ -294,23 +300,123 @@ function loadCurrent(){let id=null;try{id=localStorage.getItem(LS_CUR)}catch(e){
 
 const docKey=(pid,cid)=>pid==="main"?cid:pid+"__"+cid;
 async function saveCat(id,pid=S.pid){
-  if(mode!=="db"){lsSave();return}
+  if(mode!=="db")lsSave();
+  if(mode!=="db"&&mode!=="sheet")return;
   const k=docKey(pid,id);
   if(saving[k]){dirty[k]=true;return}
   saving[k]=true;setStatus("busy","Đang lưu…");
   try{
-    do{dirty[k]=false;await db.doc("expenses/"+k).set({rows:S.all[pid][id]})}while(dirty[k]);
+    do{dirty[k]=false;
+      if(mode==="sheet")await sheetPost({set:[{key:k,value:{rows:S.all[pid][id]}}]});
+      else await db.doc("expenses/"+k).set({rows:S.all[pid][id]});
+    }while(dirty[k]);
     setStatus("ok","Đã lưu");
-  }catch(e){setStatus("err","Lưu thất bại");toast(e.code==="invalid_argument"?"Bạn chỉ có quyền xem, không sửa được dữ liệu.":"Không lưu được. Kiểm tra kết nối rồi thử lại.")}
+  }catch(e){setStatus("err","Lưu thất bại");toast(e.code==="invalid_argument"?"Bạn chỉ có quyền xem, không sửa được dữ liệu.":"Không lưu được. Kiểm tra kết nối mạng rồi thử lại.")}
   saving[k]=false;
 }
 let projT;
 function saveProjects(delay=600){
   clearTimeout(projT);projT=setTimeout(async()=>{
-    if(mode!=="db"){lsSave();return}
-    try{await db.doc("meta/projects").set({list:S.projects.map(({id,name})=>({id,name}))});setStatus("ok","Đã lưu")}catch(e){setStatus("err","Lưu thất bại")}
+    if(mode!=="db")lsSave();
+    if(mode!=="db"&&mode!=="sheet")return;
+    const list=S.projects.map(({id,name})=>({id,name}));
+    saving.projects=true;
+    try{
+      if(mode==="sheet")await sheetPost({set:[{key:"projects",value:list}]});
+      else await db.doc("meta/projects").set({list});
+      setStatus("ok","Đã lưu");
+    }catch(e){setStatus("err","Lưu thất bại")}
+    saving.projects=false;
   },delay);
 }
+
+/* ---------- Google Sheets sync (bản GitHub) ---------- */
+const LS_SHEET="soxaynha-sheet";
+let sheetUrl=null,sheetLast="",pollT=null;
+const validSheet=u=>/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(u);
+async function sheetGet(url=sheetUrl){
+  const r=await fetch(url+"?t="+Date.now(),{cache:"no-store"});const j=await r.json();
+  if(!j.ok)throw new Error(j.error||"error");return j.docs||{};
+}
+async function sheetPost(body){
+  const r=await fetch(sheetUrl,{method:"POST",body:JSON.stringify(body)});const j=await r.json();
+  if(!j.ok)throw new Error(j.error||"error");
+}
+function applyDocs(docs){
+  if(Array.isArray(docs.projects)&&docs.projects.length&&!saving.projects)S.projects=docs.projects.map(p=>({id:p.id,name:p.name}));
+  S.projects.forEach(p=>ensureProj(p.id));
+  for(const k in docs){
+    if(k==="projects"||saving[k])continue;
+    const [pid,cid]=k.includes("__")?k.split("__"):["main",k];
+    const cats=ensureProj(pid);if(cats[cid])cats[cid]=(docs[k]&&docs[k].rows)||[];
+  }
+  if(!S.projects.some(p=>p.id===S.pid))S.pid=S.projects[0].id;
+  S.cats=ensureProj(S.pid);
+}
+function refreshView(){
+  if(document.activeElement!==$("#projName"))$("#projName").value=curProj().name;
+  $("#grandTotal").textContent=money(grand());
+  if(S.view==="thuchi"&&S.cat!=="__all"){renderNav();if(!S.editing)renderRows()}
+  else if(S.view==="thuchi")render();else renderNav();
+}
+async function pullSheet(){
+  if(mode!=="sheet"||document.visibilityState!=="visible"||Object.values(saving).some(Boolean))return;
+  try{
+    const docs=await sheetGet();const sig=JSON.stringify(docs);
+    if(sig!==sheetLast&&!Object.values(saving).some(Boolean)){sheetLast=sig;applyDocs(docs);lsSave();refreshView()}
+    setStatus("ok","Đã đồng bộ");
+  }catch(e){setStatus("err","Mất kết nối Google Sheets")}
+}
+async function startSheet(){
+  mode="sheet";lsLoad();$("#projName").value=curProj().name;render();setStatus("busy","Đang tải từ Google Sheets…");
+  try{
+    const docs=await sheetGet();
+    if(!Object.keys(docs).length){
+      const set=[{key:"projects",value:S.projects.map(({id,name})=>({id,name}))}];
+      S.projects.forEach(p=>CATS.forEach(c=>{const rows=S.all[p.id][c.id];if(rows.length)set.push({key:docKey(p.id,c.id),value:{rows}})}));
+      await sheetPost({set});
+      if(set.length>1)toast("Đã chuyển dữ liệu trên máy này lên Google Sheets.");
+    }else{sheetLast=JSON.stringify(docs);applyDocs(docs);lsSave()}
+    setStatus("ok","Đã đồng bộ");render();
+  }catch(e){setStatus("err","Không kết nối được Google Sheets");toast("Không tải được dữ liệu từ Google Sheets. Kiểm tra mạng hoặc link kết nối.")}
+  clearInterval(pollT);pollT=setInterval(pullSheet,15000);
+}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")pullSheet()});
+
+function syncDialog(err){
+  const on=mode==="sheet";
+  const share=on?location.origin+location.pathname+"#ket-noi="+encodeURIComponent(sheetUrl):"";
+  $("#overlay").innerHTML=`<div class="ov-bg" id="dlgBg" role="dialog" aria-modal="true" aria-label="Kết nối Google Sheets"><div class="dialog">
+    <h3>Kết nối Google Sheets</h3>
+    ${on?`<p>Đang đồng bộ với Google Sheets. Mở link dưới đây trên điện thoại hoặc gửi cho người nhà để dùng chung số liệu:</p>
+      <input class="cell-in" id="shareLink" readonly value="${esc(share)}">
+      <p class="hint">Chỉ gửi link này cho người bạn tin tưởng: ai có link đều xem và sửa được số liệu.</p>
+      <div class="row"><button class="btn danger" id="dlgOff">Ngắt kết nối trên máy này</button><button class="btn" id="dlgClose">Đóng</button><button class="btn pri" id="dlgCopy">Sao chép link</button></div>`
+    :`<p class="hint">Dán link Ứng dụng web lấy từ Google Apps Script (có dạng https://script.google.com/macros/s/…/exec).</p>
+      <input class="cell-in" id="sheetIn" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+      ${err?`<p class="err">${esc(err)}</p>`:""}
+      <div class="row"><button class="btn" id="dlgClose">Đóng</button><button class="btn pri" id="dlgOk">Kết nối</button></div>`}
+  </div></div>`;
+  const close=()=>{$("#overlay").innerHTML=""};
+  $("#dlgClose").onclick=close;
+  $("#dlgBg").onclick=e=>{if(e.target.id==="dlgBg")close()};
+  if(on){
+    $("#dlgCopy").onclick=async()=>{try{await navigator.clipboard.writeText(share);toast("Đã sao chép link.")}catch(e){$("#shareLink").select();toast("Bấm Ctrl+C để sao chép.")}};
+    $("#dlgOff").onclick=()=>{try{localStorage.removeItem(LS_SHEET)}catch(e){}sheetUrl=null;clearInterval(pollT);close();startLocal();updateSyncBtn();toast("Đã ngắt kết nối. Dữ liệu vẫn còn trên Google Sheets.")};
+  }else{
+    const inp=$("#sheetIn");inp.focus();
+    $("#dlgOk").onclick=async()=>{
+      const u=inp.value.trim();
+      if(!validSheet(u)){syncDialog("Link chưa đúng. Link phải bắt đầu bằng https://script.google.com/macros/s/ và kết thúc bằng /exec.");return}
+      $("#dlgOk").disabled=true;$("#dlgOk").textContent="Đang kiểm tra…";
+      try{await sheetGet(u)}catch(e){syncDialog("Không kết nối được. Kiểm tra lại bước Triển khai: “Người có quyền truy cập” phải là “Bất kỳ ai”.");return}
+      sheetUrl=u;try{localStorage.setItem(LS_SHEET,u)}catch(e){}
+      close();await startSheet();updateSyncBtn();
+    };
+  }
+}
+function updateSyncBtn(){const b=$("#syncBtn");b.hidden=mode==="db";b.textContent=mode==="sheet"?"Google Sheets: đã kết nối":"Kết nối Google Sheets"}
+$("#syncBtn").onclick=()=>syncDialog();
 
 /* ---------- houses ---------- */
 function renderHouses(){
@@ -337,6 +443,10 @@ async function deleteProj(){
       await Promise.all(CATS.map(c=>db.doc("expenses/"+docKey(id,c.id)).delete().catch(()=>{})));
       for(const f of S.files.filter(f=>(f.project||"main")===id)){await db.doc("files/"+f.id).delete();await assets?.delete(f.assetId).catch(()=>{})}
     }catch(e){toast("Không xóa được nhà này.");return}
+  }
+  if(mode==="sheet"){
+    try{await sheetPost({del:CATS.map(c=>docKey(id,c.id)),set:[{key:"projects",value:S.projects.filter(p=>p.id!==id).map(({id,name})=>({id,name}))}]})}
+    catch(e){toast("Không xóa được nhà này. Kiểm tra kết nối mạng.");return}
   }
   S.projects=S.projects.filter(p=>p.id!==id);delete S.all[id];
   saveProjects(0);switchProj(S.projects[0].id);toast("Đã xóa "+name);
@@ -569,7 +679,7 @@ function renderFolder(){
     <div class="ph"><div><h2>${esc(f.name)}</h2><div class="meta">${f.parent?esc(F[f.parent].name)+" · ":""}${list.length} tệp</div></div>
       <div class="actions">${canUp?`<button class="btn pri" id="pick">${ICON.up}Tải lên</button>`:""}</div></div>
     ${canUp?`<div class="drop" id="drop"><b>Kéo thả ảnh hoặc file PDF vào đây</b><small>JPG, PNG, WEBP, PDF, MP4 · tối đa 20 MB mỗi tệp. File CAD (DWG) hay Word hãy xuất sang PDF trước.</small></div>`
-      :`<div class="drop">${mode==="db"?"Chỉ người có quyền chỉnh sửa mới tải tệp lên được.":"Tải tệp lên cần mở trang qua claude.ai."}</div>`}
+      :`<div class="drop">${mode==="db"?"Chỉ người có quyền chỉnh sửa mới tải tệp lên được.":"Bản này chưa hỗ trợ tải bản vẽ lên. Bạn có thể lưu bản vẽ trong Google Drive."}</div>`}
     <ul class="uploads" id="upl"></ul>
     ${list.length?`<div class="grid">${list.map(x=>`<button class="card" data-file="${x.id}">
       <div class="thumb">${x.contentType.startsWith("image/")?`<img src="/_blob/${esc(x.assetId)}" alt="" loading="lazy">`:`<span class="ext">${esc(extOf(x.name).toUpperCase()||"FILE")}</span>`}</div>
@@ -650,12 +760,20 @@ $("#projName").addEventListener("input",e=>{curProj().name=e.target.value;render
 
 /* ---------- boot ---------- */
 render();
-function startLocal(){mode="local";lsLoad();$("#projName").value=curProj().name;setStatus("","Lưu trên trình duyệt");render()}
+function startLocal(){mode="local";lsLoad();$("#projName").value=curProj().name;setStatus("","Chỉ lưu trên máy này");render()}
+function startOffline(){
+  const m=location.hash.match(/^#ket-noi=(.+)$/);
+  if(m){const u=decodeURIComponent(m[1]);if(validSheet(u))try{localStorage.setItem(LS_SHEET,u)}catch(e){}
+    history.replaceState(null,"",location.pathname+location.search)}
+  try{sheetUrl=localStorage.getItem(LS_SHEET)}catch(e){}
+  if(sheetUrl&&validSheet(sheetUrl))startSheet();else{sheetUrl=null;startLocal()}
+  updateSyncBtn();
+}
 (async()=>{
   const c=window.claude;
-  if(!c||!c.use){startLocal();return}
+  if(!c||!c.use){startOffline();return}
   db=await c.use("db");
-  if(!db){startLocal();return}
+  if(!db){startOffline();return}
   mode="db";setStatus("ok","Đã đồng bộ");loadCurrent();
   const [a,d]=await Promise.all([c.use("assets"),c.use("downloads")]);assets=a;downloads=d;
   db.collection("expenses").onSnapshot(snap=>{
