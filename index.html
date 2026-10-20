@@ -202,8 +202,6 @@ td.c-pct{width:150px}
 <div class="houses" id="houses" aria-label="Các nhà"></div>
 
 <nav class="tabs" role="tablist">
-  <button class="tab" role="tab" id="tab-thuchi" aria-selected="true">Thu chi</button>
-  <button class="tab" role="tab" id="tab-banve" aria-selected="false">Bản vẽ</button>
   <div class="status" id="status"><i></i><span>Đang kết nối…</span></div>
   <button class="btn sync" id="syncBtn" hidden>Kết nối Google Sheets</button>
 </nav>
@@ -342,7 +340,7 @@ async function sheetGet(url=sheetUrl){
 }
 async function sheetPost(body){
   const r=await fetch(sheetUrl,{method:"POST",body:JSON.stringify(body)});const j=await r.json();
-  if(!j.ok)throw new Error(j.error||"error");
+  if(!j.ok)throw new Error(j.error||"error");return j;
 }
 function applyDocs(docs){
   if(Array.isArray(docs.projects)&&docs.projects.length&&!saving.projects)S.projects=docs.projects.map(p=>({id:p.id,name:p.name}));
@@ -354,12 +352,14 @@ function applyDocs(docs){
   }
   if(!S.projects.some(p=>p.id===S.pid))S.pid=S.projects[0].id;
   S.cats=ensureProj(S.pid);
+  if(!uploading)S.files=Array.isArray(docs.files)?docs.files.map(f=>({...f})):[];
 }
 function refreshView(){
   if(document.activeElement!==$("#projName"))$("#projName").value=curProj().name;
   $("#grandTotal").textContent=money(grand());
   if(S.view==="thuchi"&&S.cat!=="__all"){renderNav();if(!S.editing)renderRows()}
-  else if(S.view==="thuchi")render();else renderNav();
+  else render();
+  if(viewing&&!S.files.find(f=>f.id===viewing))closeViewer();
 }
 async function pullSheet(){
   if(mode!=="sheet"||document.visibilityState!=="visible"||Object.values(saving).some(Boolean))return;
@@ -450,7 +450,7 @@ async function deleteProj(){
     }catch(e){toast("Không xóa được nhà này.");return}
   }
   if(mode==="sheet"){
-    try{await sheetPost({del:CATS.map(c=>docKey(id,c.id)),set:[{key:"projects",value:S.projects.filter(p=>p.id!==id).map(({id,name})=>({id,name}))}]})}
+    try{await sheetPost({delFiles:S.files.filter(f=>(f.project||"main")===id).map(f=>f.id),del:CATS.map(c=>docKey(id,c.id)),set:[{key:"projects",value:S.projects.filter(p=>p.id!==id).map(({id,name})=>({id,name}))}]})}
     catch(e){toast("Không xóa được nhà này. Kiểm tra kết nối mạng.");return}
   }
   S.projects=S.projects.filter(p=>p.id!==id);delete S.all[id];
@@ -482,8 +482,7 @@ $("#nav").addEventListener("click",e=>{
 /* ---------- views ---------- */
 function render(){
   $("#grandTotal").textContent=money(grand());
-  $("#tab-thuchi").setAttribute("aria-selected",S.view==="thuchi");
-  $("#tab-banve").setAttribute("aria-selected",S.view==="banve");
+  S.view="thuchi"; // đã bỏ phần Bản vẽ, app chỉ còn Thu chi
   renderNav();
   if(S.view==="thuchi")S.cat==="__all"?renderOverview():renderLedger();
   else renderFolder();
@@ -518,8 +517,7 @@ function renderOverview(){
   $("#expAll").onclick=exportAll;
   if($("#projDel"))$("#projDel").onclick=()=>{S.confirmProj=true;render()};
   if($("#projNo"))$("#projNo").onclick=()=>{S.confirmProj=false;render()};
-  if($("#projYes"))$("#projYes").onclick=deleteProj;
-  $("#main").querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{S.cat=b.dataset.go;render()});
+  if($("#projYes"))$("#projYes").onclick=deleteProj;  $("#main").querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{S.cat=b.dataset.go;render()});
 }
 
 function renderLedger(){
@@ -668,6 +666,13 @@ $("#xlsxIn").addEventListener("change",async e=>{
 /* ---------- drawings ---------- */
 const TYPES={pdf:"application/pdf",png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp",gif:"image/gif",svg:"image/svg+xml",mp4:"video/mp4",webm:"video/webm",txt:"text/plain",csv:"text/csv"};
 const extOf=n=>(n.split(".").pop()||"").toLowerCase();
+/* Bản claude.ai lưu tệp trong kho của trang; bản GitHub lưu vào Google Drive qua Apps Script */
+let uploading=0;
+const canUpload=()=>!!assets||(mode==="sheet"&&!!sheetUrl);
+const fileSrc=x=>mode==="sheet"?(x.contentType.startsWith("image/")?"https://lh3.googleusercontent.com/d/"+encodeURIComponent(x.id):"https://drive.google.com/file/d/"+encodeURIComponent(x.id)+"/preview"):"/_blob/"+encodeURIComponent(x.assetId);
+const fileThumb=x=>mode==="sheet"?"https://drive.google.com/thumbnail?id="+encodeURIComponent(x.id)+"&sz=w480":"/_blob/"+encodeURIComponent(x.assetId);
+const fileOpen=x=>mode==="sheet"?"https://drive.google.com/file/d/"+encodeURIComponent(x.id)+"/view":fileSrc(x);
+const readB64=f=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(",")[1]||"");r.onerror=()=>no(r.error);r.readAsDataURL(f)});
 const projFiles=()=>S.files.filter(f=>(f.project||"main")===S.pid);
 function folderFiles(id){return projFiles().filter(f=>f.folder===id).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))}
 function renderFolder(){
@@ -679,15 +684,15 @@ function renderFolder(){
     return;
   }
   const list=folderFiles(f.id);
-  const canUp=!!assets;
+  const canUp=canUpload();
   $("#main").innerHTML=banner()+`<section class="panel">
     <div class="ph"><div><h2>${esc(f.name)}</h2><div class="meta">${f.parent?esc(F[f.parent].name)+" · ":""}${list.length} tệp</div></div>
       <div class="actions">${canUp?`<button class="btn pri" id="pick">${ICON.up}Tải lên</button>`:""}</div></div>
     ${canUp?`<div class="drop" id="drop"><b>Kéo thả ảnh hoặc file PDF vào đây</b><small>JPG, PNG, WEBP, PDF, MP4 · tối đa 20 MB mỗi tệp. File CAD (DWG) hay Word hãy xuất sang PDF trước.</small></div>`
-      :`<div class="drop">${mode==="db"?"Chỉ người có quyền chỉnh sửa mới tải tệp lên được.":"Bản này chưa hỗ trợ tải bản vẽ lên. Bạn có thể lưu bản vẽ trong Google Drive."}</div>`}
+      :`<div class="drop">${mode==="db"?"Chỉ người có quyền chỉnh sửa mới tải tệp lên được.":"Muốn tải bản vẽ lên, hãy bấm “Kết nối Google Sheets” ở phía trên. Bản vẽ sẽ được lưu vào Google Drive của bạn."}</div>`}
     <ul class="uploads" id="upl"></ul>
     ${list.length?`<div class="grid">${list.map(x=>`<button class="card" data-file="${x.id}">
-      <div class="thumb">${x.contentType.startsWith("image/")?`<img src="/_blob/${esc(x.assetId)}" alt="" loading="lazy">`:`<span class="ext">${esc(extOf(x.name).toUpperCase()||"FILE")}</span>`}</div>
+      <div class="thumb">${x.contentType.startsWith("image/")?`<img src="${esc(fileThumb(x))}" alt="" loading="lazy" referrerpolicy="no-referrer">`:`<span class="ext">${esc(extOf(x.name).toUpperCase()||"FILE")}</span>`}</div>
       <div class="cap"><div class="fn">${esc(x.name)}</div><div class="fm">${fsize(x.size)} · ${new Date(x.createdAt).toLocaleDateString("vi-VN")}</div></div></button>`).join("")}</div>`
       :`<div class="empty"><b>Thư mục trống</b>Tải bản vẽ, ảnh chụp hoặc file PDF lên để lưu cùng công trình.</div>`}
   </section>`;
@@ -715,10 +720,20 @@ async function uploadFiles(files){
     if(!type){item.state="Định dạng chưa hỗ trợ — hãy xuất sang PDF";item.err=1;renderUploads();continue}
     if(file.size>20*1048576){item.state="Quá 20 MB";item.err=1;renderUploads();continue}
     try{
-      const r=await assets.upload(file,{type});
-      await db.collection("files").add({folder,project,name:file.name,assetId:r.id,contentType:r.contentType,size:r.sizeBytes,createdAt:Date.now()});
+      if(mode==="sheet"){
+        uploading++;
+        try{
+          const j=await sheetPost({upload:{name:file.name,type,folder,project,data:await readB64(file)}});
+          if(j.file&&!S.files.some(f=>f.id===j.file.id))S.files.push(j.file);
+        }finally{uploading--}
+        if(S.view==="banve")render();else renderNav();
+      }else{
+        const r=await assets.upload(file,{type});
+        await db.collection("files").add({folder,project,name:file.name,assetId:r.id,contentType:r.contentType,size:r.sizeBytes,createdAt:Date.now()});
+      }
       item.state="Xong";
-    }catch(e){item.err=1;item.state={too_large:"Tệp quá lớn",unsupported_type:"Định dạng không hỗ trợ",quota_or_state:"Hết dung lượng lưu trữ",rate_limited:"Tải quá nhanh, thử lại sau"}[e.code]||"Lỗi tải lên"}
+    }catch(e){
+      if(mode==="sheet"){item.err=1;item.state=/DriveApp|quyền|permission|authoriz/i.test(e.message||"")?"Chưa cấp quyền Google Drive — xem lại hướng dẫn cập nhật mã":"Lỗi tải lên, kiểm tra mạng";renderUploads();continue}item.err=1;item.state={too_large:"Tệp quá lớn",unsupported_type:"Định dạng không hỗ trợ",quota_or_state:"Hết dung lượng lưu trữ",rate_limited:"Tải quá nhanh, thử lại sau"}[e.code]||"Lỗi tải lên"}
     renderUploads();
   }
 }
@@ -731,23 +746,27 @@ function vKey(e){if(e.key==="Escape")closeViewer();if(e.key==="ArrowLeft")step(-
 function step(d){const l=folderFiles(S.folder);const i=l.findIndex(x=>x.id===viewing);if(i<0||l.length<2)return;viewing=l[(i+d+l.length)%l.length].id;drawViewer()}
 function drawViewer(confirmDel){
   const x=S.files.find(f=>f.id===viewing);if(!x){closeViewer();return}
-  const src="/_blob/"+encodeURIComponent(x.assetId);const t=x.contentType;
-  const body=t.startsWith("image/")?`<img src="${src}" alt="${esc(x.name)}">`:t.startsWith("video/")?`<video src="${src}" controls></video>`:`<iframe src="${src}" title="${esc(x.name)}"></iframe>`;
+  const src=esc(fileSrc(x));const t=x.contentType;
+  const body=t.startsWith("image/")?`<img src="${src}" alt="${esc(x.name)}" referrerpolicy="no-referrer">`:t.startsWith("video/")&&mode!=="sheet"?`<video src="${src}" controls></video>`:`<iframe src="${src}" title="${esc(x.name)}" allow="autoplay"></iframe>`;
   const multi=folderFiles(S.folder).length>1;
   $("#overlay").innerHTML=`<div class="ov-bg" role="dialog" aria-modal="true" aria-label="${esc(x.name)}">
     <div class="ov-bar"><span class="t">${esc(x.name)}</span>
-      <a class="btn" href="${src}" target="_blank" rel="noopener">${ICON.ext}Mở tab mới</a>
-      <button class="btn" id="vDl">${ICON.dl}Tải về</button>
-      ${assets?(confirmDel?`<span class="confirm">Xóa vĩnh viễn?<button class="yes" id="vYes">Xóa</button><button id="vNo">Không</button></span>`:`<button class="btn danger" id="vDel">${ICON.del}Xóa</button>`):""}
+      <a class="btn" href="${esc(fileOpen(x))}" target="_blank" rel="noopener">${ICON.ext}Mở tab mới</a>
+      ${mode==="sheet"?`<a class="btn" href="https://drive.google.com/uc?export=download&amp;id=${encodeURIComponent(x.id)}" target="_blank" rel="noopener">${ICON.dl}Tải về</a>`:`<button class="btn" id="vDl">${ICON.dl}Tải về</button>`}
+      ${canUpload()?(confirmDel?`<span class="confirm">Xóa vĩnh viễn?<button class="yes" id="vYes">Xóa</button><button id="vNo">Không</button></span>`:`<button class="btn danger" id="vDel">${ICON.del}Xóa</button>`):""}
       <button class="btn" id="vClose">${ICON.x}Đóng</button></div>
     <div class="ov-body">${body}${multi?`<button class="navbtn l" id="vPrev" aria-label="Tệp trước">${ICON.l}</button><button class="navbtn r" id="vNext" aria-label="Tệp sau">${ICON.r}</button>`:""}</div></div>`;
   $("#vClose").onclick=closeViewer;
-  $("#vDl").onclick=()=>dlFile(x);
+  if($("#vDl"))$("#vDl").onclick=()=>dlFile(x);
   if(multi){$("#vPrev").onclick=()=>step(-1);$("#vNext").onclick=()=>step(1)}
   if($("#vDel"))$("#vDel").onclick=()=>drawViewer(true);
   if($("#vNo"))$("#vNo").onclick=()=>drawViewer(false);
   if($("#vYes"))$("#vYes").onclick=async()=>{
-    try{await db.doc("files/"+x.id).delete();await assets.delete(x.assetId).catch(()=>{});closeViewer();toast("Đã xóa "+x.name)}
+    try{
+      if(mode==="sheet"){await sheetPost({delFiles:[x.id]});S.files=S.files.filter(f=>f.id!==x.id);closeViewer();render()}
+      else{await db.doc("files/"+x.id).delete();await assets.delete(x.assetId).catch(()=>{});closeViewer()}
+      toast("Đã xóa "+x.name);
+    }
     catch(e){toast("Không xóa được tệp.")}
   };
   document.removeEventListener("keydown",vKey);document.addEventListener("keydown",vKey);
@@ -759,8 +778,6 @@ async function dlFile(x){
 }
 
 /* ---------- tabs & project ---------- */
-$("#tab-thuchi").onclick=()=>{S.view="thuchi";render()};
-$("#tab-banve").onclick=()=>{S.view="banve";render()};
 $("#projName").addEventListener("input",e=>{curProj().name=e.target.value;renderHouses();saveProjects()});
 
 /* ---------- boot ---------- */
