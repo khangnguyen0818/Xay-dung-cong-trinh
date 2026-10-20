@@ -1,5 +1,7 @@
 <!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
 <title>Sổ Xây Nhà</title>
+<meta name="apple-mobile-web-app-title" content="Sổ Xây Nhà">
+<meta name="application-name" content="Sổ Xây Nhà">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -402,7 +404,7 @@ function syncDialog(err){
   $("#dlgBg").onclick=e=>{if(e.target.id==="dlgBg")close()};
   if(on){
     $("#dlgCopy").onclick=async()=>{try{await navigator.clipboard.writeText(share);toast("Đã sao chép link.")}catch(e){$("#shareLink").select();toast("Bấm Ctrl+C để sao chép.")}};
-    $("#dlgOff").onclick=()=>{try{localStorage.removeItem(LS_SHEET)}catch(e){}sheetUrl=null;clearInterval(pollT);close();startLocal();updateSyncBtn();toast("Đã ngắt kết nối. Dữ liệu vẫn còn trên Google Sheets.")};
+    $("#dlgOff").onclick=()=>{try{localStorage.removeItem(LS_SHEET)}catch(e){}sheetUrl=null;setHash(null);clearInterval(pollT);close();startLocal();updateSyncBtn();toast("Đã ngắt kết nối. Dữ liệu vẫn còn trên Google Sheets.")};
   }else{
     const inp=$("#sheetIn");inp.focus();
     $("#dlgOk").onclick=async()=>{
@@ -410,11 +412,14 @@ function syncDialog(err){
       if(!validSheet(u)){syncDialog("Link chưa đúng. Link phải bắt đầu bằng https://script.google.com/macros/s/ và kết thúc bằng /exec.");return}
       $("#dlgOk").disabled=true;$("#dlgOk").textContent="Đang kiểm tra…";
       try{await sheetGet(u)}catch(e){syncDialog("Không kết nối được. Kiểm tra lại bước Triển khai: “Người có quyền truy cập” phải là “Bất kỳ ai”.");return}
-      sheetUrl=u;try{localStorage.setItem(LS_SHEET,u)}catch(e){}
+      sheetUrl=u;setHash(u);try{localStorage.setItem(LS_SHEET,u)}catch(e){}
       close();await startSheet();updateSyncBtn();
     };
   }
 }
+/* Giữ link kết nối trên thanh địa chỉ để "Thêm vào màn hình chính" hay dấu trang luôn mở đúng sổ
+   (trên iPhone, biểu tượng ở màn hình chính có bộ nhớ riêng, không dùng chung với Safari) */
+function setHash(u){try{history.replaceState(null,"",location.pathname+location.search+(u?"#ket-noi="+encodeURIComponent(u):""))}catch(e){}}
 function updateSyncBtn(){const b=$("#syncBtn");b.hidden=mode==="db";b.textContent=mode==="sheet"?"Google Sheets: đã kết nối":"Kết nối Google Sheets"}
 $("#syncBtn").onclick=()=>syncDialog();
 
@@ -763,10 +768,9 @@ render();
 function startLocal(){mode="local";lsLoad();$("#projName").value=curProj().name;setStatus("","Chỉ lưu trên máy này");render()}
 function startOffline(){
   const m=location.hash.match(/^#ket-noi=(.+)$/);
-  if(m){const u=decodeURIComponent(m[1]);if(validSheet(u))try{localStorage.setItem(LS_SHEET,u)}catch(e){}
-    history.replaceState(null,"",location.pathname+location.search)}
-  try{sheetUrl=localStorage.getItem(LS_SHEET)}catch(e){}
-  if(sheetUrl&&validSheet(sheetUrl))startSheet();else{sheetUrl=null;startLocal()}
+  if(m){const u=decodeURIComponent(m[1]);if(validSheet(u)){sheetUrl=u;try{localStorage.setItem(LS_SHEET,u)}catch(e){}}}
+  if(!sheetUrl)try{sheetUrl=localStorage.getItem(LS_SHEET)}catch(e){}
+  if(sheetUrl&&validSheet(sheetUrl)){setHash(sheetUrl);startSheet()}else{sheetUrl=null;startLocal()}
   updateSyncBtn();
 }
 (async()=>{
